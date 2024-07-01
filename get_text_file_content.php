@@ -1,4 +1,3 @@
-```php
 <?php
 // 定义txt文件的路径
 $filePath = '/BF1.txt';
