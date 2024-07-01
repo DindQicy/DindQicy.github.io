@@ -1,3 +1,8 @@
 {
-  "url_to_read": "http://www.饭太硬.com/tv/"
+  "application": {
+    "redirect": {
+      "enabled": true,
+      "url": "http://www.饭太硬.com/tv/"
+    }
+  }
 }
