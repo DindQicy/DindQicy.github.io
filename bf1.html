@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>显示文本文件内容</title>
+</head>
+<body>
+    <h1>显示文本文件的内容</h1>
+    <div id="text-content"></div>
+
+    <script>
+        // 使用AJAX从服务器获取文本文件内容
+        document.addEventListener("DOMContentLoaded", function() {
+            fetch('/get_text_file_content.php')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('text-content').innerHTML = data;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+    </script>
+</body>
+</html>
