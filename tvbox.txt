@@ -1,8 +1,7 @@
 {
-  "application": {
-    "redirect": {
-      "enabled": true,
-      "url": "http://www.饭太硬.com/tv/"
-    }
+  "server_redirect_configuration": {
+    "spider": {
+      "redirect_url":
+"http://www.饭太硬.com/tv/"
   }
 }
