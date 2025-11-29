@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkdlbWluaSBXcml0ZXIiLAogICJzaG9ydF9uYW1lIjogIkd-V3JpdGVyIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNmMmYyZjciLAogICJ0aGVtZV9jb2xvciI6ICIjZjJmMmY3IiwKICAiaWNvbnMiOiBbXQp9">
+    
+    <title>Gemini Novelist</title>
+
+    <style>
+        /* ==================== 1. 设计系统 (Design System) ==================== */
+        :root {
+            /* 调色板 - iOS System Colors */
+            --bg-light: #f2f2f7;
+            --bg-dark: #000000;
+            --card-light: rgba(255, 255, 255, 0.8);
+            --card-dark: rgba(28, 28, 30, 0.8);
+            --text-primary-light: #1c1c1e;
+            --text-primary-dark: #ffffff;
+            --text-secondary-light: #8e8e93;
+            --text-secondary-dark: #98989d;
+            --accent: #007aff; /* iOS Blue */
+            
+            /* 玻璃拟态参数 */
+            --glass-blur: blur(25px) saturate(180%);
+            --border-light: rgba(255, 255, 255, 0.4);
+            --border-dark: rgba(255, 255, 255, 0.1);
+            
+            /* 物理动画曲线 */
+            --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+            
+            /* Android 15 安全区域变量 */
+            --safe-top: env(safe-area-inset-top, 24px);
+            --safe-bottom: env(safe-area-inset-bottom, 24px);
+        }
+
+        /* 深色模式适配 */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-curr: var(--bg-dark);
+                --card-curr: var(--card-dark);
+                --text-main: var(--text-primary-dark);
+                --text-sub: var(--text-secondary-dark);
+                --border-curr: var(--border-dark);
+            }
+        }
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg-curr: var(--bg-light);
+                --card-curr: var(--card-light);
+                --text-main: var(--text-primary-light);
+                --text-sub: var(--text-secondary-light);
+                --border-curr: var(--border-light);
+            }
+        }
+
+        /* ==================== 2. 全局重置与排版 ==================== */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+        
+        body {
+            margin: 0; padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "HarmonyOS Sans", Roboto, sans-serif;
+            background-color: var(--bg-curr);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden; /* 应用级容器，禁止整体滚动 */
+            transition: background-color 0.3s;
+        }
+
+        /* ==================== 3. 布局架构 ==================== */
+        #app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding-top: var(--safe-top); /* 避让状态栏 */
+            padding-bottom: 0;
+        }
+
+        /* 顶部导航栏 - 磨砂玻璃效果 */
+        header {
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 60px;
+            z-index: 100;
+            /* 粘性标题栏不需要背景模糊，让内容滚入下方更自然，这里留白或透明 */
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin: 0;
+            background: linear-gradient(135deg, #007aff, #5ac8fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        /* 主内容滚动区 */
+        main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 20px 100px 20px; /* 底部留白给FAB和Home Indicator */
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* 隐藏滚动条 */
+        main::-webkit-scrollbar { display: none; }
+
+        /* ==================== 4. 组件：卡片 (Cards) ==================== */
+       .section-header {
+            font-size: 13px;
+            text-transform: uppercase;
+            color: var(--text-sub);
+            font-weight: 600;
+            margin: 24px 0 8px 4px;
+            letter-spacing: 0.5px;
+        }
+
+       .card {
+            background: var(--card-curr);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-curr);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+            transition: transform 0.2s var(--ease-ios);
+            position: relative;
+            overflow: hidden;
+        }
+
+       .card:active { transform: scale(0.97); } /* 按压微缩放 */
+
+       .segment-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-sub);
+        }
+
+       .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+       .status-pending { background: #ff9f0a; box-shadow: 0 0 8px #ff9f0a; }
+       .status-done { background: #30d158; box-shadow: 0 0 8px #30d158; }
+
+       .text-preview {
+            font-size: 16px;
+            line-height: 1.6;
+            color: var(--text-main);
+            display: -webkit-box;
+            -webkit-line-clamp: 3; /* 限制显示3行 */
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            opacity: 0.8;
+        }
+
+        /* ==================== 5. 组件：浮动按钮 (FAB) ==================== */
+       .fab {
+            position: absolute;
+            bottom: calc(var(--safe-bottom) + 30px);
+            right: 24px;
+            width: 60px; height: 60px;
+            border-radius: 30px;
+            background: var(--accent);
+            color: white;
+            display: flex;
+            align-items: center; justify-content: center;
+            font-size: 32px;
+            box-shadow: 0 10px 25px rgba(0, 122, 255, 0.4);
+            border: none;
+            z-index: 50;
+            transition: transform 0.3s var(--ease-spring);
+        }
+       .fab:active { transform: scale(0.85) rotate(90deg); }
+
+        /* ==================== 6. 组件：底部抽屉 (Bottom Sheet) ==================== */
+       .overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(4px);
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+       .overlay.active { opacity: 1; pointer-events: auto; }
+
+       .sheet {
+            position: fixed;
+            left: 0; right: 0; bottom: 0;
+            background: var(--card-curr);
+            backdrop-filter: blur(40px) saturate(200%); /* 强效毛玻璃 */
+            -webkit-backdrop-filter: blur(40px) saturate(200%);
+            border-top-left-radius: 28px;
+            border-top-right-radius: 28px;
+            z-index: 201;
+            transform: translateY(110%);
+            transition: transform 0.5s var(--ease-spring);
+            padding-bottom: var(--safe-bottom); /* 关键：避让手势条 */
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            border-top: 1px solid var(--border-curr);
+        }
+        
+       .sheet.active { transform: translateY(0); }
+
+       .sheet-handle {
+            width: 100%; height: 24px;
+            display: flex; align-items: center; justify-content: center;
+        }
+       .handle-bar {
+            width: 40px; height: 5px;
+            background: rgba(120, 120, 128, 0.3);
+            border-radius: 3px;
+        }
+
+       .sheet-content {
+            padding: 0 24px 24px 24px;
+            overflow-y: auto;
+        }
+
+        /* 控件样式 */
+       .ios-btn {
+            width: 100%;
+            padding: 16px;
+            border-radius: 14px;
+            border: none;
+            font-size: 17px;
+            font-weight: 600;
+            margin-top: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+       .btn-primary { background: var(--accent); color: white; }
+       .btn-secondary { background: rgba(120,120,128,0.15); color: var(--accent); }
+       .ios-btn:active { opacity: 0.8; transform: scale(0.99); }
+
+       .ios-input {
+            width: 100%;
+            padding: 16px;
+            background: rgba(120,120,128,0.1);
+            border: none;
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 16px;
+            margin-bottom: 16px;
+            font-family: inherit;
+        }
+       .ios-input:focus { outline: 2px solid var(--accent); background: rgba(120,120,128,0.05); }
+
+        /* 标签选择器 (Chips) */
+       .chip-group {
+            display: flex; gap: 10px; overflow-x: auto; padding: 10px 0;
+            scrollbar-width: none;
+        }
+       .chip {
+            padding: 8px 16px;
+            background: rgba(120,120,128,0.1);
+            border-radius: 20px;
+            font-size: 14px;
+            white-space: nowrap;
+            color: var(--text-main);
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+       .chip.selected {
+            background: var(--accent); color: white;
+            box-shadow: 0 4px 10px rgba(0,122,255,0.3);
+        }
+
+        /* Toast 提示 */
+       .toast {
+            position: fixed;
+            top: calc(var(--safe-top) + 70px);
+            left: 50%;
+            transform: translate(-50%, -20px);
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 14px;
+            opacity: 0;
+            transition: all 0.3s;
+            pointer-events: none;
+            z-index: 300;
+        }
+       .toast.show { opacity: 1; transform: translate(-50%, 0); }
+        
+        /* 开关样式 */
+       .switch-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(120,120,128,0.1);
+        }
+       .switch-input { width: 50px; height: 30px; } /* 简化处理，实际可用CSS重绘 */
+        
+        input[type="file"] { display: none; }
+
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <header>
+            <h1>Gemini Novelist</h1>
+            <div onclick="App.openContextSheet()" style="font-size:24px; color:var(--accent);">📚</div>
+        </header>
+
+        <main id="card-list">
+            <div style="text-align:center; margin-top:100px; color:var(--text-sub);">
+                <p>暂无内容</p>
+                <p>点击右下角 + 号导入小说原文</p>
+            </div>
+        </main>
+
+        <button class="fab" onclick="App.openImportSheet()">+</button>
+    </div>
+
+    <div class="overlay" id="overlay" onclick="App.closeSheets()"></div>
+
+    <div class="sheet" id="sheet-import">
+        <div class="sheet-handle" onclick="App.closeSheets()"><div class="handle-bar"></div></div>
+        <div class="sheet-content">
+            <h2>导入原文</h2>
+            <p style="color:var(--text-sub); font-size:14px; margin-bottom:20px;">
+                选择TXT文件，系统将根据自然段落自动将其切割为适合Gemini处理的片段（每段约1500字）。
+            </p>
+            <label class="ios-btn btn-primary" style="display:block; text-align:center">
+                选择本地 TXT 文件
+                <input type="file" id="file-input" accept=".txt">
+            </label>
+        </div>
+    </div>
+
+    <div class="sheet" id="sheet-context">
+        <div class="sheet-handle" onclick="App.closeSheets()"><div class="handle-bar"></div></div>
+        <div class="sheet-content">
+            <h2>全局上下文设定</h2>
+            <p style="color:var(--text-sub); font-size:14px;">这些信息将自动拼接到每次的AI提示词中。</p>
+            
+            <div class="section-header">角色小传 (Character Bio)</div>
+            <textarea id="ctx-bio" class="ios-input" rows="4" placeholder="例如：主角陈墨，性格阴郁，左手有义肢..."></textarea>
+            
+            <div class="section-header">当前剧情摘要 (Current Plot)</div>
+            <textarea id="ctx-plot" class="ios-input" rows="4" placeholder="例如：陈墨正在潜入巨型企业大楼，由于警报触发，必须在5分钟内撤离..."></textarea>
+            
+            <button class="ios-btn btn-primary" onclick="App.saveContext()">保存设定</button>
+        </div>
+    </div>
+
+    <div class="sheet" id="sheet-workflow">
+        <div class="sheet-handle" onclick="App.closeSheets()"><div class="handle-bar"></div></div>
+        <div class="sheet-content">
+            <h2 id="wf-title">片段处理</h2>
+            
+            <div class="section-header">第一步：选择渲染风格</div>
+            <div class="chip-group" id="prompt-chips">
+                <div class="chip selected" onclick="App.selectPrompt(this, '赛博朋克风，强调霓虹灯光效与机械义肢的冰冷感，多用短句。')">赛博朋克</div>
+                <div class="chip" onclick="App.selectPrompt(this, '古龙武侠风，极简，多用对白推动剧情，强调氛围的压抑。')">古龙武侠</div>
+                <div class="chip" onclick="App.selectPrompt(this, '维多利亚哥特风，华丽繁复的辞藻，强调心理恐怖。')">哥特恐怖</div>
+                <div class="chip" onclick="App.selectPrompt(this, '海明威式，冰山理论，极度克制的形容词。')">极简主义</div>
+            </div>
+
+            <div class="section-header">注入选项</div>
+            <div class="switch-row">
+                <span>注入角色小传</span>
+                <input type="checkbox" id="chk-bio" checked class="switch-input">
+            </div>
+            <div class="switch-row">
+                <span>注入剧情摘要</span>
+                <input type="checkbox" id="chk-plot" checked class="switch-input">
+            </div>
+
+            <button class="ios-btn btn-primary" onclick="App.copyPayload()">
+                ⚡ 复制完整指令 (Prompt + Context + Text)
+            </button>
+            <p style="text-align:center; color:var(--text-sub); font-size:12px;">复制后，请切换至Gemini App粘贴发送</p>
+
+            <hr style="border:0; border-top:1px solid var(--border-curr); margin:20px 0;">
+
+            <div class="section-header">第二步：保存渲染结果</div>
+            <textarea id="render-input" class="ios-input" rows="5" placeholder="在此粘贴 Gemini 生成的正文..."></textarea>
+            <button class="ios-btn btn-secondary" onclick="App.saveRender()">保存并标记为完成</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">操作成功</div>
+
+    <script>
+        /**
+         * 模块1：本地数据库 (IndexedDB Wrapper)
+         * 负责所有数据的持久化存储，不依赖网络。
+         */
+        const DB = {
+            dbName: 'GeminiNovelist_V1',
+            db: null,
+            
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open(this.dbName, 1);
+                    req.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        // 存储小说片段
+                        if (!db.objectStoreNames.contains('segments')) {
+                            db.createObjectStore('segments', { keyPath: 'id' });
+                        }
+                        // 存储全局设定（KV存储）
+                        if (!db.objectStoreNames.contains('settings')) {
+                            db.createObjectStore('settings', { keyPath: 'key' });
+                        }
+                    };
+                    req.onsuccess = (e) => {
+                        this.db = e.target.result;
+                        resolve(this.db);
+                    };
+                    req.onerror = (e) => reject(e);
+                });
+            },
+
+            async putSegment(segment) {
+                return this.tx('segments', 'readwrite', store => store.put(segment));
+            },
+
+            async getAllSegments() {
+                return new Promise(resolve => {
+                    const tx = this.db.transaction('segments', 'readonly');
+                    const req = tx.objectStore('segments').getAll();
+                    req.onsuccess = () => resolve(req.result.sort((a,b) => a.order - b.order));
+                });
+            },
+
+            async putSetting(key, value) {
+                return this.tx('settings', 'readwrite', store => store.put({ key, value }));
+            },
+
+            async getSetting(key) {
+                return new Promise(resolve => {
+                    const tx = this.db.transaction('settings', 'readonly');
+                    const req = tx.objectStore('settings').get(key);
+                    req.onsuccess = () => resolve(req.result? req.result.value : '');
+                });
+            },
+
+            tx(storeName, mode, callback) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(storeName, mode);
+                    callback(tx.objectStore(storeName));
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e);
+                });
+            }
+        };
+
+        /**
+         * 模块2：核心业务逻辑 (App Controller)
+         */
+        const App = {
+            currentSegmentId: null,
+            currentPrompt: '赛博朋克风，强调霓虹灯光效与机械义肢的冰冷感，多用短句。', // 默认
+
+            async init() {
+                await DB.init();
+                this.renderList();
+                this.bindEvents();
+                
+                // 加载已保存的上下文
+                document.getElementById('ctx-bio').value = await DB.getSetting('bio');
+                document.getElementById('ctx-plot').value = await DB.getSetting('plot');
+            },
+
+            bindEvents() {
+                document.getElementById('file-input').addEventListener('change', (e) => this.handleFile(e));
+            },
+
+            // 智能分段逻辑
+            async handleFile(event) {
+                const file = event.target.files;
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const text = e.target.result;
+                    this.closeSheets();
+                    this.showToast('正在处理文本...', 2000);
+
+                    // 算法：按双换行符分割段落，然后累积直到约1000字符
+                    const paragraphs = text.split(/\n\s*\n/);
+                    let chunks =;
+                    let currentChunk = '';
+                    
+                    for (let p of paragraphs) {
+                        if (currentChunk.length + p.length > 1000) {
+                            chunks.push(currentChunk);
+                            currentChunk = p + "\n\n";
+                        } else {
+                            currentChunk += (p + "\n\n");
+                        }
+                    }
+                    if (currentChunk) chunks.push(currentChunk);
+
+                    // 存入DB
+                    let order = 1;
+                    for (let c of chunks) {
+                        await DB.putSegment({
+                            id: 'seg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                            order: order++,
+                            raw: c.trim(),
+                            rendered: '',
+                            status: 'pending' // pending | done
+                        });
+                    }
+                    
+                    this.renderList();
+                    this.showToast(`成功导入 ${chunks.length} 个片段`);
+                };
+                reader.readAsText(file, 'UTF-8'); // 默认UTF-8，中文需注意
+            },
+
+            async renderList() {
+                const list = await DB.getAllSegments();
+                const container = document.getElementById('card-list');
+                container.innerHTML = '';
+
+                if (list.length === 0) {
+                    container.innerHTML = `<div style="text-align:center; margin-top:100px; color:var(--text-sub);"><p>暂无内容</p><p>点击右下角 + 号导入小说原文</p></div>`;
+                    return;
+                }
+
+                list.forEach(seg => {
+                    const el = document.createElement('div');
+                    el.className = 'card';
+                    el.onclick = () => this.openWorkflow(seg);
+                    
+                    const statusClass = seg.status === 'done'? 'status-done' : 'status-pending';
+                    const statusText = seg.status === 'done'? '已渲染' : '待处理';
+                    
+                    // 优先显示渲染后的文本，否则显示原文
+                    const displayText = seg.rendered |
+
+| seg.raw;
+                    
+                    el.innerHTML = `
+                        <div class="segment-meta">
+                            <span>#${seg.order} 片段</span>
+                            <div style="display:flex; align-items:center;">
+                                <span class="status-dot ${statusClass}"></span>
+                                <span>${statusText}</span>
+                            </div>
+                        </div>
+                        <div class="text-preview" style="${seg.status==='done'?'font-family:serif;':''}">${displayText}</div>
+                    `;
+                    container.appendChild(el);
+                });
+            },
+
+            openWorkflow(seg) {
+                this.currentSegmentId = seg.id;
+                document.getElementById('wf-title').innerText = `处理片段 #${seg.order}`;
+                document.getElementById('render-input').value = seg.rendered |
+
+| '';
+                
+                // 将当前原文存为临时属性方便调用
+                this.currentRaw = seg.raw;
+                
+                this.openSheet('sheet-workflow');
+            },
+
+            // 核心逻辑：组装 Prompt
+            async copyPayload() {
+                const bio = document.getElementById('chk-bio').checked? document.getElementById('ctx-bio').value : '';
+                const plot = document.getElementById('chk-plot').checked? document.getElementById('ctx-plot').value : '';
+                
+                const payload = `
+【角色设定】
+${bio}
+
+【当前剧情背景】
+${plot}
+
+【任务目标】
+${this.currentPrompt}
+请保持上下文连贯，保留原文的核心情节，但按照上述风格重写。
+
+【待处理原文】
+${this.currentRaw}
+                `.trim();
+
+                try {
+                    await navigator.clipboard.writeText(payload);
+                    if (navigator.vibrate) navigator.vibrate(50); // 震动反馈
+                    this.showToast('复制成功！请前往Gemini粘贴');
+                } catch (err) {
+                    this.showToast('复制失败，请手动复制');
+                }
+            },
+
+            async saveRender() {
+                const text = document.getElementById('render-input').value;
+                if (!text) return;
+                
+                const seg = (await DB.getAllSegments()).find(s => s.id === this.currentSegmentId);
+                if (seg) {
+                    seg.rendered = text;
+                    seg.status = 'done';
+                    await DB.putSegment(seg);
+                    this.showToast('已保存！');
+                    this.closeSheets();
+                    this.renderList();
+                }
+            },
+
+            async saveContext() {
+                const bio = document.getElementById('ctx-bio').value;
+                const plot = document.getElementById('ctx-plot').value;
+                await DB.putSetting('bio', bio);
+                await DB.putSetting('plot', plot);
+                this.showToast('全局设定已更新');
+                this.closeSheets();
+            },
+
+            // UI 辅助方法
+            openSheet(id) {
+                document.getElementById('overlay').classList.add('active');
+                document.getElementById(id).classList.add('active');
+                if (navigator.vibrate) navigator.vibrate(10);
+            },
+            closeSheets() {
+                document.getElementById('overlay').classList.remove('active');
+                document.querySelectorAll('.sheet').forEach(el => el.classList.remove('active'));
+            },
+            openImportSheet() { this.openSheet('sheet-import'); },
+            openContextSheet() { this.openSheet('sheet-context'); },
+            showToast(msg, time=1500) {
+                const t = document.getElementById('toast');
+                t.innerText = msg;
+                t.classList.add('show');
+                setTimeout(() => t.classList.remove('show'), time);
+            },
+            selectPrompt(el, promptText) {
+                document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+                el.classList.add('selected');
+                this.currentPrompt = promptText;
+                if (navigator.vibrate) navigator.vibrate(10);
+            }
+        };
+
+        // 启动应用
+        window.addEventListener('DOMContentLoaded', () => App.init());
+        
+        // 监听可见性变化：当用户从Gemini切回来时，给予提示（可选优化）
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && App.currentSegmentId) {
+                // 用户回到了App，且正在编辑某个片段
+                // 可以在这里自动读取剪贴板（需要权限），暂不实现以免打扰
+            }
+        });
+
+    </script>
+</body>
+</html>
